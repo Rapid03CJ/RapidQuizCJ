@@ -1,0 +1,456 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>RapidQuizCJ</title>
+  <style>
+    body {
+      font-family: Arial, sans-serif;
+      background: #f5f5f5;
+      color: #333;
+      margin: 0;
+      padding: 20px;
+      font-size: 1rem;
+    }
+    header {
+      text-align: center;
+      margin-bottom: 20px;
+      position: relative;
+    }
+    header img {
+      width: 100px;
+      border-radius: 50%;
+    }
+    h1 {
+      color: #e74c3c;
+    }
+    #cj-points {
+      position: absolute;
+      top: 0;
+      right: 20px;
+      background: #28a745;
+      color: #fff;
+      padding: 5px 10px;
+      border-radius: 4px;
+      font-weight: bold;
+    }
+    .quiz-container {
+      width: 95%;
+      max-width: 700px;
+      margin: auto;
+      padding: 20px;
+      background: #fff;
+      border-radius: 8px;
+      box-shadow: 0 0 10px rgba(0,0,0,0.1);
+    }
+    button#start-btn { background: #007bff; }
+    button#start-btn:hover { background: #0056b3; }
+    button#pause-btn { background: #ffc107; color: #000; }
+    button#pause-btn:hover { background: #e0a800; }
+    button#skip-btn { background: #17a2b8; }
+    button#skip-btn:hover { background: #138496; }
+    button#end-btn { background: #dc3545; }
+    button#end-btn:hover { background: #c82333; }
+    button#submit-btn { background: #28a745; }
+    button#submit-btn:hover { background: #218838; }
+    button[onclick="askCjBot()"] { background: #6f42c1; }
+    button[onclick="askCjBot()"]:hover { background: #5a32a3; }
+    #question-container button {
+      background: #000;
+      color: #fff;
+    }
+    #question-container button:hover { background: #333; }
+    button {
+      margin: 5px;
+      padding: 10px 20px;
+      border: none;
+      color: #fff;
+      cursor: pointer;
+      border-radius: 4px;
+    }
+    .ask-cj, .result {
+      margin-top: 20px;
+      padding: 10px;
+      background: #ecf0f1;
+      border-radius: 4px;
+    }
+    .ask-cj h3, .result h3 { margin: 0 0 10px; }
+    #chatbot-icon {
+      position: fixed;
+      bottom: 20px;
+      right: 20px;
+      background: transparent;
+      cursor: pointer;
+      z-index: 1000;
+    }
+    #chatbot-icon img {
+      width: 60px;
+    }
+    #chatbot-window {
+      position: fixed;
+      bottom: 90px;
+      right: 20px;
+      width: 300px;
+      max-height: 400px;
+      background: #fff;
+      border-radius: 8px;
+      box-shadow: 0 0 10px rgba(0,0,0,0.3);
+      display: none;
+      flex-direction: column;
+      z-index: 1000;
+    }
+    #chatbot-messages {
+      flex: 1;
+      padding: 10px;
+      overflow-y: auto;
+    }
+    #chatbot-input {
+      display: flex;
+      border-top: 1px solid #ddd;
+    }
+    #chatbot-input input {
+      flex: 1;
+      border: none;
+      padding: 10px;
+    }
+    #chatbot-input button {
+      background: #007bff;
+      color: #fff;
+      border: none;
+      padding: 10px;
+      cursor: pointer;
+    }
+  </style>
+</head>
+<body>
+
+<header>
+  <img src="https://ik.imagekit.io/lui93jazem/ChatGPT%20Image%20May%2027,%202025,%2012_10_40%20PM.png?updatedAt=1749172289105" alt="RapidQuizCJ Logo" />
+  <h1>RapidQuizCJ</h1>
+  <p>Your Daily Dose of Knowledge</p>
+  <div id="cj-points">CJ Points: 0</div>
+</header>
+
+<div class="quiz-container">
+  <div>
+    <p>Time left: <span id="timer">5:00</span></p>
+    <button id="start-btn" onclick="startQuiz()">Start Quiz</button>
+    <button id="pause-btn" onclick="pauseQuiz()" style="display:none;">Pause/Resume</button>
+    <button id="skip-btn" onclick="skipQuestion()" style="display:none;">Skip</button>
+    <button id="end-btn" onclick="endQuiz()" style="display:none;">End Quiz</button>
+    <button onclick="askCjBot()">Ask CJ Bot</button>
+  </div>
+  <div id="question-container" style="margin-top: 20px;"></div>
+
+  <button id="submit-btn" onclick="submitAnswer()" style="display:none; margin-top:10px;">Submit Answer</button>
+
+  <div id="askCj" class="ask-cj" style="display: none;">
+    <h3>Ask CJ Bot</h3>
+    <p>Use the chatbot icon in the bottom-right corner to chat with me anytime!</p>
+    <button onclick="document.getElementById('askCj').style.display='none'">Close</button>
+  </div>
+  <div id="result" class="result" style="display: none;"></div>
+</div>
+
+<!-- Chatbot floating icon -->
+<div id="chatbot-icon" onclick="toggleChatbot()">
+  <img src="https://ik.imagekit.io/lui93jazem/robot.png?updatedAt=1749180030553" alt="AskCJBot" />
+</div>
+
+<!-- Chatbot window -->
+<div id="chatbot-window">
+  <div id="chatbot-messages"></div>
+  <div id="chatbot-input">
+    <input type="text" id="user-input" placeholder="Type your question..." />
+    <button onclick="sendChat()">Send</button>
+  </div>
+</div>
+
+<!-- Load jsPDF -->
+<script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
+<script>
+let questions = [];
+
+fetch("https://raw.githubusercontent.com/rapid03cj/questions.json/main/questions.json")
+  .then(response => response.json())
+  .then(data => {
+    questions = data;
+  })
+  .catch(error => {
+    console.error("Error loading questions:", error);
+  });
+
+let currentQuestion = 0;
+let score = 0;
+let timer;
+let timeLeft = 300;
+let isPaused = false;
+let selectedOption = null;
+let userAnswers = [];
+let shuffledQuestions = [];
+let cjPoints = parseInt(localStorage.getItem('cjPoints')) || 0;
+document.getElementById('cj-points').innerText = "CJ Points: " + cjPoints;
+
+function startQuiz() {
+  shuffledQuestions = [...questions].sort(() => Math.random() - 0.5).slice(0, 10);
+  currentQuestion = 0;
+  score = 0;
+  userAnswers = [];
+  timeLeft = 300;
+  isPaused = false;
+
+  document.getElementById('start-btn').style.display = 'none';
+  document.getElementById('pause-btn').style.display = 'inline-block';
+  document.getElementById('skip-btn').style.display = 'inline-block';
+  document.getElementById('end-btn').style.display = 'inline-block';
+  document.getElementById('result').style.display = 'none';
+
+  showQuestion();
+  startTimer();
+}
+
+function startTimer() {
+  clearInterval(timer);
+  timer = setInterval(() => {
+    if (!isPaused) {
+      let minutes = Math.floor(timeLeft / 60);
+      let seconds = timeLeft % 60;
+      seconds = seconds < 10 ? '0' + seconds : seconds;
+      document.getElementById('timer').textContent = `${minutes}:${seconds}`;
+      if (timeLeft <= 0) {
+        clearInterval(timer);
+        showResult();
+      }
+      timeLeft--;
+    }
+  }, 1000);
+}
+
+function pauseQuiz() {
+  isPaused = !isPaused;
+}
+
+function showQuestion() {
+  if (currentQuestion >= shuffledQuestions.length) {
+    clearInterval(timer);
+    showResult();
+    return;
+  }
+
+  let q = shuffledQuestions[currentQuestion];
+  let html = `<h3>Q${currentQuestion + 1}: ${q.question}</h3>`;
+  q.options.forEach(opt => {
+    html += `<button onclick="selectOption('${opt}')">${opt}</button>`;
+  });
+  document.getElementById('question-container').innerHTML = html;
+
+  document.getElementById('submit-btn').style.display = 'none';
+}
+
+function selectOption(opt) {
+  selectedOption = opt;
+  document.getElementById('submit-btn').style.display = 'inline-block';
+}
+
+function submitAnswer() {
+  if (!selectedOption) {
+    alert("Please select an option first!");
+    return;
+  }
+  let q = shuffledQuestions[currentQuestion];
+  let correct = selectedOption === q.answer;
+  if (correct) {
+    score += 2;
+  } else {
+    score -= 0.33;
+  }
+  userAnswers.push({
+    question: q.question,
+    selected: selectedOption,
+    correct: q.answer,
+    isCorrect: correct
+  });
+  selectedOption = null;
+  currentQuestion++;
+  showQuestion();
+}
+
+function skipQuestion() {
+  selectedOption = null;
+  currentQuestion++;
+  showQuestion();
+}
+
+function endQuiz() {
+  clearInterval(timer);
+  showResult();
+}
+
+function showResult() {
+  let html = `<h3>Quiz Completed! 🎉</h3>`;
+  html += `<p>Your final score: <strong>${score} CJ Points</strong></p>`;
+
+  cjPoints += 5;
+  localStorage.setItem('cjPoints', cjPoints);
+  document.getElementById('cj-points').innerText = "CJ Points: " + cjPoints;
+
+  if (cjPoints >= 50) {
+    html += `<p style="color: green; font-weight: bold;">Congratulations! 🎉 You have enough CJ Points for a certificate!</p>`;
+    html += `<input type="text" id="userName" placeholder="Enter your name" style="padding:10px; font-size:16px; margin-top:10px; display:block;">`;
+    html += `<button onclick="generateCertificate()" style="padding:10px 20px; background:#28a745; color:#fff; border:none; border-radius:5px; margin-top:10px;">Download My Certificate</button>`;
+  }
+
+  html += `<h4>Review:</h4>`;
+  userAnswers.forEach((q, index) => {
+    html += `<p><strong>Q${index + 1}:</strong> ${q.question}<br>`;
+    html += `<strong>Your answer:</strong> ${q.selected ? q.selected : "Skipped"} ${q.isCorrect ? "✅" : q.selected ? "❌" : ""}<br>`;
+    html += `<strong>Correct answer:</strong> ${q.correct}</p>`;
+  });
+  html += `<p style="margin-top: 10px; font-style: italic; color: green;">"Believe in yourself and all that you are. Know that there is something inside you that is greater than any obstacle." 🌟</p>`;
+  document.getElementById('result').innerHTML = html;
+  document.getElementById('result').style.display = 'block';
+  document.getElementById('question-container').innerHTML = '';
+  document.getElementById('pause-btn').style.display = 'none';
+  document.getElementById('skip-btn').style.display = 'none';
+  document.getElementById('end-btn').style.display = 'none';
+  document.getElementById('submit-btn').style.display = 'none';
+  document.getElementById('start-btn').style.display = 'inline-block';
+}
+function generateCertificate() {
+  const name = document.getElementById('userName').value.trim();
+  if (!name) {
+    alert("Please enter your name!");
+    return;
+  }
+
+  const { jsPDF } = window.jspdf;
+  const doc = new jsPDF({
+    orientation: "landscape",
+    unit: "px",
+    format: [1087, 768]
+  });
+
+  let img = new Image();
+  img.crossOrigin = "anonymous";
+  img.src = "https://ik.imagekit.io/lui93jazem/Black%20Gold%20Modern%20Certificate%20Of%20Achievement.png?updatedAt=1751518779359";
+
+  img.onload = function() {
+    doc.addImage(img, 'PNG', 0, 0, 1087, 768);
+
+    // ✅ Bold + Cursive font
+    doc.setFont("helvetica", "bolditalic");
+    doc.setFontSize(45);
+    doc.setTextColor("#000000");
+    doc.text(name, 1087/2, 410, { align: "center" });
+
+    doc.save(`RapidQuizCJ_Certificate_${name}.pdf`);
+
+    // Reset CJ Points
+    localStorage.setItem('cjPoints', 0);
+    document.getElementById('cj-points').innerText = "CJ Points: 0";
+    cjPoints = 0;
+
+    setTimeout(() => {
+      startQuiz();
+    }, 1500);
+  };
+
+  img.onerror = function() {
+    alert("Image failed to load. Please check your certificate image URL.");
+  };
+}
+
+function askCjBot() {
+  document.getElementById('askCj').style.display = 'block';
+}
+
+function toggleChatbot() {
+  let botWindow = document.getElementById('chatbot-window');
+  botWindow.style.display = botWindow.style.display === 'none' ? 'flex' : 'none';
+}
+
+function sendChat() {
+  let userInput = document.getElementById('user-input').value.trim();
+  if (!userInput) return;
+  appendChat('You', userInput);
+  document.getElementById('user-input').value = '';
+  let response = getBotResponse(userInput);
+  setTimeout(() => {
+    appendChat('AskCJBot', response);
+  }, 500);
+}
+
+function appendChat(sender, message) {
+  let msgDiv = document.createElement('div');
+  msgDiv.innerHTML = `<strong>${sender}:</strong> ${message}`;
+  document.getElementById('chatbot-messages').appendChild(msgDiv);
+  document.getElementById('chatbot-messages').scrollTop = document.getElementById('chatbot-messages').scrollHeight;
+}
+
+function getBotResponse(userInput) {
+  userInput = userInput.toLowerCase().trim();
+  const qa = {
+    "hello": "Hello! Welcome to RapidQuizCJ 🤗",
+    "hi": "Hi there! How can I help you?",
+    "what is cj points": "They’re your reward points for each correct answer!",
+   "how to play": "Just click Start and enjoy the quiz experience!",
+   "who are you": "I’m AskCJBot, your quiz helper and friend! 🤖",
+   "tell me a fun fact": "Did you know honey never spoils? 🍯",
+   "tell me a joke": "Why don’t scientists trust atoms? Because they make up everything! 😂",
+   "give me shayari": "Dil se khelna seekho, mohabbat toh roz milti hai. 💕",
+   "give me tareef": "Wow, you’re truly amazing! Keep shining! 🌟",
+   "tell me a motivational line": "Keep going, you’re stronger than you think! 💪",
+   "how to earn certificate": "Get 50 CJ Points by playing multiple quizzes!",
+   "who created you": "I was created by CJ – the quiz master!",
+   "what topics are covered": "We cover Science, History, Polity, Geography, Economics, and Current Affairs!",
+   "how long is the quiz": "Each quiz has 10 questions and takes about 5 minutes.",
+   "how many attempts do i get": "As many as you want! Keep playing and learning.",
+   "can i pause the quiz": "Yes! Click the Pause/Resume button during the quiz.",
+   "how to improve my score": "Keep practicing, read more, and stay curious!",
+   "will my progress be saved": "Yes! Your CJ Points are saved locally in your browser.",
+   "how to contact you": "You can message me anytime using this chatbot icon!",
+   "what happens after 50 cj points": "You’ll earn a certificate as a recognition of your quiz mastery!",
+   "can you motivate me": "You are unstoppable! Believe in yourself and keep pushing forward. 🌟",
+   "can you give me a quote": "Sure! ‘The future belongs to those who believe in the beauty of their dreams.’ - Eleanor Roosevelt",
+  "who is the owner": "Chandravesh Jukariya is the mastermind behind RapidQuizCJ!",
+  "why was rapidquizcj made": "Knowledge aur fun ko ek sath lane ke liye! 😎",
+  "how is rapidquizcj": "Super fun, just like you my friend!",
+  "what is chandravash's aim": "Logo ko entertain aur educate karna quizzes ke through!",
+  "who is the most intelligent": "Bhai, obviously tum ho! 😉",
+  "which language bot uses": "Hindi-English dono, jisme aap comfortable ho!",
+  "who answers fastest": "Tumhare jaisa tez koi nahi! 😁",
+  "someone speaks too much english": "Arey bhai, thoda Hindi bhi bol le… Oxford ki degree hai kya? 😜",
+  "what else chandravash likes": "Singing, traveling, aur puzzles solve karna. Multitalented hai bhai!",
+  "how are rapidquizcj users": "Smart, intelligent aur full on mast!",
+  "what is cj points": "Ye tumhare reward points hain har sahi jawab ke badle!",
+  "who is the owner of this game": "the real GOAT Chandravesh Jukariya ",
+  "who is the owner of the game": "the real GOAT Chandravesh Jukariya ",
+  "can i play again": "Bilkul! Dusri baar bhi try kar lo, practice makes perfect!",
+  "is rapidquizcj free": "Yes bhai, bilkul free hai. No paisa, only fun!",
+  "can i challenge friends": "Haan, dosto ko bulao aur quiz mein compete karo!",
+  "does bot get tired": "Nahi yaar, main kabhi bore ya tired nahi hota!",
+  "what if i lose": "Koi baat nahi! Haar jeet game ka part hai. Try again karo!",
+  "is rapidquizcj famous": "Of course! Aur tumhare jaise users se aur bhi famous ban raha hai!",
+  "do i get certificate": "Haan bhai! Achha perform karoge toh certificate bhi milega!",
+  "who is faster - bot or user": "Honestly… tum hi fast ho boss! Bot toh tumhare peeche peeche hai. 😂",
+  "english_baba": "Oye English Baba, thoda Hindi bhi bol lo… sab samajh nahi paate! 🤣",
+  "bot_ki_shadi": "Mujhse shaadi mat karna, main ek bot hoon yaar! 😜",
+  "bhook_lagi": "Quiz ke beech bhook lag gayi? Pehle samosa khao, phir quiz complete karo! 😋",
+  "gussa_kyun": "Itna gussa kyun bhai? Galat jawab se duniya khatam nahi hoti! 😂",
+  "cheating_mat_kar": "Cheating mat kar yaar… Google sab kuch nahi hota! 😆"
+  };
+  if (qa[userInput]) return qa[userInput];
+  return "I'm still learning. Try asking something else!";
+}
+</script>
+
+<footer style="text-align: center; margin-top: 20px; font-size: 0.75rem; color: #666;">
+  © 2025 RapidQuizCJ | Designed by Chandravesh Jukariya
+  <a href="https://www.youtube.com/@chandraveshjukariya" target="_blank" style="color: #007bff; text-decoration: none; margin: 0 5px;">YouTube</a>
+  <a href="https://teachingeassy.blogspot.com/" target="_blank" style="color: #28a745; text-decoration: none; margin: 0 5px;">EduTech4u</a>
+  <a href="https://youtube.com/@rapidrhetoric" target="_blank" style="color: #dc3545; text-decoration: none; margin: 0 5px;">Rapid Rhetoric</a>
+</footer>
+
+</body>
+</html>
